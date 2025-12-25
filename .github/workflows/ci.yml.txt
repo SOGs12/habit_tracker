@@ -1,0 +1,54 @@
+name: Habit Tracker CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: habit_tracker
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest
+
+    - name: Wait for MySQL
+      run: |
+        sudo apt-get install -y mysql-client
+        until mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1"; do
+          echo "Waiting for MySQL..."
+          sleep 5
+        done
+
+    - name: Load schema
+      run: |
+        mysql -h 127.0.0.1 -uroot -proot habit_tracker < src/schema.sql
+
+    - name: Run tests
+      run: pytest
